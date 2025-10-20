@@ -13,17 +13,40 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   late int _countdownSeconds;
+  late bool _autoStartListening;
+  late bool _keepScreenOn;
+  late TextEditingController _accessKeyController;
 
   @override
   void initState() {
     super.initState();
     final provider = Provider.of<EmergencyProvider>(context, listen: false);
     _countdownSeconds = provider.settings.countdownSeconds;
+    _autoStartListening = provider.settings.autoStartListening;
+    _keepScreenOn = provider.settings.keepScreenOn;
+    _accessKeyController = TextEditingController(
+      text: provider.settings.porcupineAccessKey ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _accessKeyController.dispose();
+    super.dispose();
   }
 
   void _saveSettings() {
     final provider = Provider.of<EmergencyProvider>(context, listen: false);
-    provider.updateSettings(AppSettings(countdownSeconds: _countdownSeconds));
+    provider.updateSettings(
+      AppSettings(
+        countdownSeconds: _countdownSeconds,
+        autoStartListening: _autoStartListening,
+        keepScreenOn: _keepScreenOn,
+        porcupineAccessKey: _accessKeyController.text.isEmpty
+            ? null
+            : _accessKeyController.text,
+      ),
+    );
     Navigator.pop(context);
   }
 
@@ -72,6 +95,101 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       fontWeight: FontWeight.w500,
                       fontSize: 16,
                     ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Listening Options',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  SwitchListTile(
+                    title: const Text('Auto-Start Listening'),
+                    subtitle: const Text(
+                      'Automatically start listening when app opens',
+                    ),
+                    value: _autoStartListening,
+                    onChanged: (value) {
+                      setState(() {
+                        _autoStartListening = value;
+                      });
+                    },
+                  ),
+                  SwitchListTile(
+                    title: const Text('Keep Screen On'),
+                    subtitle: const Text(
+                      'Prevent screen from turning off while listening',
+                    ),
+                    value: _keepScreenOn,
+                    onChanged: (value) {
+                      setState(() {
+                        _keepScreenOn = value;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Text(
+                        'Porcupine Wake Word',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Chip(
+                        label: Text('Optional', style: TextStyle(fontSize: 10)),
+                        backgroundColor: Colors.orange,
+                        labelStyle: TextStyle(color: Colors.white),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Enable always-on wake word detection (requires free access key)',
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _accessKeyController,
+                    decoration: const InputDecoration(
+                      labelText: 'Porcupine Access Key',
+                      hintText: 'Get free key from picovoice.ai/console',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.key),
+                      helperText: 'Sign up at console.picovoice.ai',
+                    ),
+                    obscureText: true,
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () {
+                      // Open Picovoice console in browser
+                      // This would require url_launcher which is already in dependencies
+                    },
+                    icon: const Icon(Icons.open_in_new),
+                    label: const Text('Get Access Key'),
                   ),
                 ],
               ),

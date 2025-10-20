@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../models/emergency_contact.dart';
 import '../providers/emergency_provider.dart';
@@ -15,61 +16,122 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final SpeechService _speechService = SpeechService();
   bool _isListening = false;
   String _lastWords = '';
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _initializeAutoStart();
+  }
+
+  Future<void> _initializeAutoStart() async {
+    // Wait for the first frame to render
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (mounted) {
+      final provider = Provider.of<EmergencyProvider>(context, listen: false);
+
+      // Auto-start listening if enabled in settings
+      if (provider.settings.autoStartListening &&
+          provider.contacts.isNotEmpty) {
+        await _startListening();
+      }
+
+      // Keep screen on if enabled
+      if (provider.settings.keepScreenOn) {
+        WakelockPlus.enable();
+      }
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    final provider = Provider.of<EmergencyProvider>(context, listen: false);
+
+    if (state == AppLifecycleState.resumed) {
+      // App came to foreground
+      if (provider.settings.autoStartListening && !_isListening) {
+        _startListening();
+      }
+      if (provider.settings.keepScreenOn) {
+        WakelockPlus.enable();
+      }
+    } else if (state == AppLifecycleState.paused) {
+      // App went to background
+      if (provider.settings.keepScreenOn) {
+        WakelockPlus.disable();
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _speechService.dispose();
+    WakelockPlus.disable();
     super.dispose();
   }
 
-  Future<void> _toggleListening() async {
+  Future<void> _startListening() async {
     final provider = Provider.of<EmergencyProvider>(context, listen: false);
 
-    if (_isListening) {
-      await _speechService.stopListening();
-      setState(() {
-        _isListening = false;
-        _lastWords = '';
-      });
-      provider.setListening(false);
-      provider.setLastRecognizedText('');
-    } else {
-      final initialized = await _speechService.initialize();
-      if (!initialized) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Microphone permission denied'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
+    final initialized = await _speechService.initialize();
+    if (!initialized) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Microphone permission denied'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
+      return;
+    }
 
-      setState(() {
-        _isListening = true;
-      });
-      provider.setListening(true);
+    setState(() {
+      _isListening = true;
+    });
+    provider.setListening(true);
 
-      await _speechService.startListening(
-        contacts: provider.contacts,
-        onResult: (text) {
-          setState(() {
-            _lastWords = text;
-          });
-          provider.setLastRecognizedText(text);
-        },
-        onWakeWordDetected: (contact) {
-          if (contact != null) {
-            _handleWakeWordDetected(contact);
-          }
-        },
-      );
+    await _speechService.startListening(
+      contacts: provider.contacts,
+      onResult: (text) {
+        setState(() {
+          _lastWords = text;
+        });
+        provider.setLastRecognizedText(text);
+      },
+      onWakeWordDetected: (contact) {
+        if (contact != null) {
+          _handleWakeWordDetected(contact);
+        }
+      },
+    );
+  }
+
+  Future<void> _stopListening() async {
+    final provider = Provider.of<EmergencyProvider>(context, listen: false);
+
+    await _speechService.stopListening();
+    setState(() {
+      _isListening = false;
+      _lastWords = '';
+    });
+    provider.setListening(false);
+    provider.setLastRecognizedText('');
+  }
+
+  Future<void> _toggleListening() async {
+    if (_isListening) {
+      await _stopListening();
+    } else {
+      await _startListening();
     }
   }
 
