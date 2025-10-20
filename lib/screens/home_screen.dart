@@ -1,0 +1,398 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../models/emergency_contact.dart';
+import '../providers/emergency_provider.dart';
+import '../services/speech_service.dart';
+import 'add_edit_contact_screen.dart';
+import 'countdown_screen.dart';
+import 'settings_screen.dart';
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final SpeechService _speechService = SpeechService();
+  bool _isListening = false;
+  String _lastWords = '';
+
+  @override
+  void dispose() {
+    _speechService.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggleListening() async {
+    final provider = Provider.of<EmergencyProvider>(context, listen: false);
+
+    if (_isListening) {
+      await _speechService.stopListening();
+      setState(() {
+        _isListening = false;
+        _lastWords = '';
+      });
+      provider.setListening(false);
+      provider.setLastRecognizedText('');
+    } else {
+      final initialized = await _speechService.initialize();
+      if (!initialized) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Microphone permission denied'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      setState(() {
+        _isListening = true;
+      });
+      provider.setListening(true);
+
+      await _speechService.startListening(
+        contacts: provider.contacts,
+        onResult: (text) {
+          setState(() {
+            _lastWords = text;
+          });
+          provider.setLastRecognizedText(text);
+        },
+        onWakeWordDetected: (contact) {
+          if (contact != null) {
+            _handleWakeWordDetected(contact);
+          }
+        },
+      );
+    }
+  }
+
+  void _handleWakeWordDetected(EmergencyContact contact) async {
+    await _speechService.stopListening();
+    setState(() {
+      _isListening = false;
+      _lastWords = '';
+    });
+
+    final provider = Provider.of<EmergencyProvider>(context, listen: false);
+    provider.setListening(false);
+    provider.setLastRecognizedText('');
+
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CountdownScreen(
+            contact: contact,
+            countdownSeconds: provider.settings.countdownSeconds,
+          ),
+        ),
+      );
+    }
+  }
+
+  void _navigateToAddContact() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AddEditContactScreen()),
+    );
+  }
+
+  void _navigateToEditContact(EmergencyContact contact) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddEditContactScreen(contact: contact),
+      ),
+    );
+  }
+
+  void _navigateToSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SettingsScreen()),
+    );
+  }
+
+  void _deleteContact(String id) {
+    final provider = Provider.of<EmergencyProvider>(context, listen: false);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Contact'),
+        content: const Text('Are you sure you want to delete this contact?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              provider.deleteContact(id);
+              Navigator.pop(context);
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Emergency App'),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: _navigateToSettings,
+          ),
+        ],
+      ),
+      body: Consumer<EmergencyProvider>(
+        builder: (context, provider, child) {
+          return Column(
+            children: [
+              // Voice Control Section
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Theme.of(context).colorScheme.primaryContainer,
+                      Theme.of(context).colorScheme.secondaryContainer,
+                    ],
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'Voice Control',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    GestureDetector(
+                      onTap: _toggleListening,
+                      child: Container(
+                        width: 120,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _isListening ? Colors.red : Colors.blue,
+                          boxShadow: _isListening
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.red.withOpacity(0.5),
+                                    blurRadius: 20,
+                                    spreadRadius: 5,
+                                  ),
+                                ]
+                              : [],
+                        ),
+                        child: Icon(
+                          _isListening ? Icons.mic : Icons.mic_none,
+                          size: 60,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _isListening ? 'Listening...' : 'Tap to activate',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (_lastWords.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '"$_lastWords"',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontStyle: FontStyle.italic,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Say: "help emergency [wake word]"',
+                      style: TextStyle(fontSize: 14, color: Colors.black54),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Contacts List Section
+              Expanded(
+                child: provider.contacts.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.contacts,
+                              size: 80,
+                              color: Colors.grey.shade400,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No emergency contacts',
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Tap + to add a contact',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(8),
+                        itemCount: provider.contacts.length,
+                        itemBuilder: (context, index) {
+                          final contact = provider.contacts[index];
+                          return Card(
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: _getTypeColor(contact.type),
+                                child: Icon(
+                                  _getTypeIcon(contact.type),
+                                  color: Colors.white,
+                                ),
+                              ),
+                              title: Text(
+                                contact.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Type: ${contact.type.toUpperCase()}',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  Text(
+                                    'Wake word: "${contact.wakeWord}"',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Phone: ${contact.contactNumber}',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                              trailing: PopupMenuButton(
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(
+                                    value: 'edit',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.edit),
+                                        SizedBox(width: 8),
+                                        Text('Edit'),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.delete, color: Colors.red),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'Delete',
+                                          style: TextStyle(color: Colors.red),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                onSelected: (value) {
+                                  if (value == 'edit') {
+                                    _navigateToEditContact(contact);
+                                  } else if (value == 'delete') {
+                                    _deleteContact(contact.id);
+                                  }
+                                },
+                              ),
+                              isThreeLine: true,
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _navigateToAddContact,
+        tooltip: 'Add Contact',
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Color _getTypeColor(String type) {
+    switch (type.toLowerCase()) {
+      case 'police':
+        return Colors.blue;
+      case 'ambulance':
+        return Colors.red;
+      case 'fire station':
+        return Colors.orange;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData _getTypeIcon(String type) {
+    switch (type.toLowerCase()) {
+      case 'police':
+        return Icons.local_police;
+      case 'ambulance':
+        return Icons.local_hospital;
+      case 'fire station':
+        return Icons.local_fire_department;
+      default:
+        return Icons.emergency;
+    }
+  }
+}
