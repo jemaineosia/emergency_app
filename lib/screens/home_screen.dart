@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
@@ -5,6 +7,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../models/emergency_contact.dart';
 import '../providers/emergency_provider.dart';
+import '../services/android_voice_service.dart';
 import '../services/speech_service.dart';
 import 'add_edit_contact_screen.dart';
 import 'countdown_screen.dart';
@@ -27,6 +30,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _requestPermissionsAndInitialize();
+
+    // Start Android foreground service if on Android
+    if (Platform.isAndroid) {
+      _startAndroidBackgroundService();
+    }
+  }
+
+  Future<void> _startAndroidBackgroundService() async {
+    final started = await AndroidVoiceService.startVoiceService();
+    if (started) {
+      await AndroidVoiceService.showOnLockScreen();
+      debugPrint('✅ Android background voice service active');
+      debugPrint('✅ App can now work on lock screen');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🎤 Voice listening active on lock screen'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _requestPermissionsAndInitialize() async {
@@ -103,6 +130,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    // Stop Android service when app closes
+    if (Platform.isAndroid) {
+      AndroidVoiceService.stopVoiceService();
+    }
+
     WidgetsBinding.instance.removeObserver(this);
     _speechService.dispose();
     WakelockPlus.disable();

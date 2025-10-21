@@ -49,5 +49,10 @@
 	<string>This app needs microphone access to listen for emergency wake words.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>This app needs speech recognition to detect emergency wake words.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>processing</string>
+	</array>
 </dict>
 </plist>
