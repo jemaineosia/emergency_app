@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:porcupine_flutter/porcupine.dart';
 import 'package:porcupine_flutter/porcupine_manager.dart';
 
@@ -20,6 +21,22 @@ class PorcupineService {
     if (accessKey.isEmpty) {
       debugPrint('⚠️  Access key is empty');
       return false;
+    }
+
+    // Request microphone permission
+    debugPrint('🔑 Requesting microphone permission...');
+    final status = await Permission.microphone.request();
+    if (!status.isGranted) {
+      debugPrint('❌ Microphone permission denied');
+      return false;
+    }
+    debugPrint('✅ Microphone permission granted');
+
+    // Request speech recognition permission (for iOS)
+    final speechStatus = await Permission.speech.request();
+    if (!speechStatus.isGranted) {
+      debugPrint('⚠️  Speech recognition permission denied');
+      // Don't return false - Porcupine might still work without it
     }
 
     try {
