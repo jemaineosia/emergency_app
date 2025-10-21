@@ -5,9 +5,10 @@ class AppSettings {
   final String? porcupineAccessKey;
 
   AppSettings({
-    this.countdownSeconds = 60, // Default 60 seconds
-    this.autoStartListening = false, // Auto-start listening when app opens
-    this.keepScreenOn = false, // Keep screen on while listening
+    this.countdownSeconds = 5, // Default 5 seconds
+    this.autoStartListening =
+        true, // Auto-start listening when app opens (hands-free mode)
+    this.keepScreenOn = true, // Keep screen on while listening (emergency app)
     this.porcupineAccessKey, // Porcupine access key (optional)
   });
 
@@ -22,9 +23,9 @@ class AppSettings {
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
     return AppSettings(
-      countdownSeconds: json['countdownSeconds'] ?? 60,
-      autoStartListening: json['autoStartListening'] ?? false,
-      keepScreenOn: json['keepScreenOn'] ?? false,
+      countdownSeconds: json['countdownSeconds'] ?? 5,
+      autoStartListening: json['autoStartListening'] ?? true,
+      keepScreenOn: json['keepScreenOn'] ?? true,
       porcupineAccessKey: json['porcupineAccessKey'],
     );
   }

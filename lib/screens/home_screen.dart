@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
@@ -25,10 +26,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initializeAutoStart();
+    _requestPermissionsAndInitialize();
   }
 
-  Future<void> _initializeAutoStart() async {
+  Future<void> _requestPermissionsAndInitialize() async {
+    // Request permissions on first load
+    await _requestPermissions();
+
     // Wait for the first frame to render
     await Future.delayed(const Duration(milliseconds: 500));
 
@@ -36,14 +40,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final provider = Provider.of<EmergencyProvider>(context, listen: false);
 
       // Auto-start listening if enabled in settings
-      if (provider.settings.autoStartListening &&
-          provider.contacts.isNotEmpty) {
+      // Note: Always start listening for emergency readiness, even without contacts
+      if (provider.settings.autoStartListening) {
         await _startListening();
       }
 
       // Keep screen on if enabled
       if (provider.settings.keepScreenOn) {
         WakelockPlus.enable();
+      }
+    }
+  }
+
+  Future<void> _requestPermissions() async {
+    // Request microphone permission
+    final micStatus = await Permission.microphone.request();
+    debugPrint('🎤 Microphone permission: $micStatus');
+
+    // Request speech recognition permission
+    final speechStatus = await Permission.speech.request();
+    debugPrint('🗣️ Speech recognition permission: $speechStatus');
+
+    if (!micStatus.isGranted || !speechStatus.isGranted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Microphone and speech permissions are required for voice commands',
+            ),
+            action: SnackBarAction(
+              label: 'Settings',
+              onPressed: () => openAppSettings(),
+            ),
+            duration: const Duration(seconds: 5),
+          ),
+        );
       }
     }
   }
@@ -147,7 +178,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     provider.setLastRecognizedText('');
 
     if (mounted) {
-      Navigator.push(
+      // Navigate to countdown screen and wait for it to complete
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => CountdownScreen(
@@ -156,6 +188,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ),
       );
+
+      // After countdown screen closes, automatically resume listening if auto-start is enabled
+      if (mounted && provider.settings.autoStartListening) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        await _startListening();
+      }
     }
   }
 

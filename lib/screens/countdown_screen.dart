@@ -45,25 +45,36 @@ class _CountdownScreenState extends State<CountdownScreen> {
   }
 
   void _makeEmergencyCall() async {
+    // Show brief message that call is being initiated
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ Initiating emergency call...'),
+          backgroundColor: Colors.red,
+          duration: Duration(milliseconds: 800),
+        ),
+      );
+    }
+
+    // Small delay to show the message
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    // Make the call - iOS will show native confirmation dialog
     final success = await _phoneService.makeCall(widget.contact.contactNumber);
 
     if (mounted) {
-      if (success) {
+      // Pop the countdown screen after call attempt
+      Navigator.of(context).pop();
+
+      if (!success) {
+        // Only show error if call failed
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Calling emergency contact...'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to make call. Please dial manually.'),
+            content: Text('Failed to initiate call. Please dial manually.'),
             backgroundColor: Colors.red,
           ),
         );
       }
-      Navigator.of(context).pop();
     }
   }
 
@@ -91,104 +102,121 @@ class _CountdownScreenState extends State<CountdownScreen> {
     return Scaffold(
       backgroundColor: Colors.red.shade50,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.emergency, size: 80, color: Colors.red),
-              const SizedBox(height: 24),
-              const Text(
-                'EMERGENCY CALL',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.red,
-                ),
-              ),
-              const SizedBox(height: 48),
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: 200,
-                    height: 200,
-                    child: CircularProgressIndicator(
-                      value: progress,
-                      strokeWidth: 12,
-                      backgroundColor: Colors.grey.shade300,
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        Colors.red,
-                      ),
-                    ),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(height: 20),
+                const Icon(Icons.emergency, size: 80, color: Colors.red),
+                const SizedBox(height: 24),
+                const Text(
+                  'AUTO-DIALING IN',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
                   ),
-                  Column(
-                    children: [
-                      Text(
-                        '$_remainingSeconds',
-                        style: const TextStyle(
-                          fontSize: 72,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Call will start automatically',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey.shade700,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: 200,
+                      height: 200,
+                      child: CircularProgressIndicator(
+                        value: progress,
+                        strokeWidth: 12,
+                        backgroundColor: Colors.grey.shade300,
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Colors.red,
                         ),
                       ),
-                      const Text(
-                        'seconds',
-                        style: TextStyle(fontSize: 20, color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 48),
-              Card(
-                elevation: 4,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildInfoRow(
-                        Icons.local_hospital,
-                        'Type',
-                        widget.contact.type.toUpperCase(),
-                      ),
-                      const Divider(),
-                      _buildInfoRow(Icons.person, 'Name', widget.contact.name),
-                      const Divider(),
-                      _buildInfoRow(
-                        Icons.phone,
-                        'Number',
-                        widget.contact.contactNumber,
-                      ),
-                      const Divider(),
-                      _buildInfoRow(
-                        Icons.location_on,
-                        'Address',
-                        widget.contact.address,
-                      ),
-                    ],
+                    ),
+                    Column(
+                      children: [
+                        Text(
+                          '$_remainingSeconds',
+                          style: const TextStyle(
+                            fontSize: 72,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red,
+                          ),
+                        ),
+                        const Text(
+                          'seconds',
+                          style: TextStyle(fontSize: 20, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 48),
+                Card(
+                  elevation: 4,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildInfoRow(
+                          Icons.local_hospital,
+                          'Type',
+                          widget.contact.type.toUpperCase(),
+                        ),
+                        const Divider(),
+                        _buildInfoRow(
+                          Icons.person,
+                          'Name',
+                          widget.contact.name,
+                        ),
+                        const Divider(),
+                        _buildInfoRow(
+                          Icons.phone,
+                          'Number',
+                          widget.contact.contactNumber,
+                        ),
+                        const Divider(),
+                        _buildInfoRow(
+                          Icons.location_on,
+                          'Address',
+                          widget.contact.address,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _cancelCall,
-                  icon: const Icon(Icons.cancel, size: 28),
-                  label: const Text(
-                    'CANCEL CALL',
-                    style: TextStyle(fontSize: 18),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.all(20),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _cancelCall,
+                    icon: const Icon(Icons.cancel, size: 28),
+                    label: const Text(
+                      'CANCEL CALL',
+                      style: TextStyle(fontSize: 18),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.all(20),
+                    ),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 20),
+              ],
+            ),
           ),
         ),
       ),
