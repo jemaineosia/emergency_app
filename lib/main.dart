@@ -8,6 +8,7 @@ import 'providers/emergency_provider.dart';
 import 'providers/location_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
+import 'screens/dashboard/dashboard_screen.dart';
 import 'services/background_service.dart';
 import 'services/supabase_service.dart';
 
@@ -51,7 +52,7 @@ class MyApp extends StatelessWidget {
           '/': (context) => const AuthWrapper(),
           '/login': (context) => const LoginScreen(),
           '/signup': (context) => const SignUpScreen(),
-          '/home': (context) => const HomeScreenPlaceholder(),
+          '/home': (context) => const DashboardScreen(),
         },
       ),
     );
@@ -75,75 +76,11 @@ class AuthWrapper extends StatelessWidget {
 
         // Navigate based on auth state
         if (authProvider.isSignedIn) {
-          return const HomeScreenPlaceholder();
+          return const DashboardScreen();
         } else {
           return const LoginScreen();
         }
       },
-    );
-  }
-}
-
-/// Placeholder for home screen (will be replaced later)
-class HomeScreenPlaceholder extends StatelessWidget {
-  const HomeScreenPlaceholder({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final authProvider = context.watch<AuthProvider>();
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Emergency App'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await authProvider.signOut();
-            },
-          ),
-        ],
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.check_circle, size: 80, color: Colors.green),
-              const SizedBox(height: 24),
-              const Text(
-                'Authentication Working!',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              if (authProvider.userProfile != null) ...[
-                Text(
-                  'Welcome, ${authProvider.userProfile!.displayName ?? "User"}!',
-                  style: const TextStyle(fontSize: 18),
-                ),
-                const SizedBox(height: 8),
-                if (authProvider.userProfile!.email != null)
-                  Text(
-                    authProvider.userProfile!.email!,
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-              ],
-              const SizedBox(height: 32),
-              const Text(
-                '🚧 Home Screen Coming Soon',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Next: Location services & emergency contacts',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.grey),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
