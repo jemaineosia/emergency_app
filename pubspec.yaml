@@ -35,12 +35,22 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   
-  # Wake word detection (always-on)
-  porcupine_flutter: ^3.0.2
+  # Backend and Authentication
+  supabase_flutter: ^2.5.7
   
-  # Speech recognition for command detection
-  speech_to_text: ^7.0.0
-  permission_handler: ^11.0.1
+  # Location services
+  geolocator: ^12.0.0
+  geocoding: ^3.0.0
+  
+  # Google Places API
+  google_places_flutter: ^2.1.1
+  http: ^1.2.0
+  
+  # Contact management
+  flutter_contacts: ^1.1.9
+  
+  # Background tasks
+  workmanager: ^0.5.2
   
   # Phone calling
   url_launcher: ^6.2.1
@@ -51,14 +61,8 @@ dependencies:
   # State management
   provider: ^6.1.1
   
-  # Background service
-  flutter_foreground_task: ^8.0.0
-  
-  # Keep screen on
-  wakelock_plus: ^1.2.0
-  
-  # Simple audio recorder used to trigger iOS microphone registration
-  record: ^6.1.2
+  # Permissions
+  permission_handler: ^11.0.1
 
 dev_dependencies:
   flutter_test:

@@ -1,3 +1,7 @@
+# Sensitive configuration files - DO NOT COMMIT!
+lib/core/constants/supabase_config.dart
+lib/core/constants/google_config.dart
+
 # Miscellaneous
 *.class
 *.log

@@ -45,14 +45,33 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>This app needs microphone access to listen for emergency wake words.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>This app needs speech recognition to detect emergency wake words.</string>
+	
+	<!-- Location Permissions -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We need your location to find nearby emergency services (police, hospital, fire station).</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>We update emergency contacts based on your location in the background to ensure you always have the nearest services.</string>
+	
+	<!-- Contacts Permission -->
+	<key>NSContactsUsageDescription</key>
+	<string>We need access to save emergency contacts (POLICE, HOSPITAL, FIRE STATION) to your phone so you can use Siri voice commands.</string>
+	
+	<!-- Background Modes -->
 	<key>UIBackgroundModes</key>
 	<array>
-		<string>audio</string>
+		<string>fetch</string>
 		<string>processing</string>
+	</array>
+	
+	<!-- URL Schemes for OAuth Deep Linking -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.skilla.emergencyApp</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>
