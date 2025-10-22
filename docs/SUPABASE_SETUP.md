@@ -198,6 +198,8 @@ class SupabaseConfig {
    - iOS: Add bundle ID `com.skilla.emergencyApp`
    - Android: Add package name + SHA-1 certificate fingerprint
 
+AIzaSyAMTsOIjwCINeoW9han6n-0cXjKnitzqDg
+
 5. Create file: `lib/core/constants/google_config.dart`
 
 ```dart
