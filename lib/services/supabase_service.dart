@@ -194,6 +194,43 @@ class SupabaseService {
     await client.from('emergency_contacts').delete().eq('id', contactId);
   }
 
+  /// Upsert emergency contact (create or update based on contact type)
+  Future<Map<String, dynamic>> upsertEmergencyContact(
+    Map<String, dynamic> contact,
+  ) async {
+    if (currentUserId == null) throw Exception('User not signed in');
+
+    contact['user_id'] = currentUserId;
+
+    // Check if contact already exists for this user and contact type
+    final existingContacts = await client
+        .from('emergency_contacts')
+        .select()
+        .eq('user_id', currentUserId!)
+        .eq('contact_type', contact['contact_type'])
+        .eq('is_ai_generated', contact['is_ai_generated'] ?? true);
+
+    if (existingContacts.isNotEmpty) {
+      // Update existing contact
+      final existingId = existingContacts.first['id'];
+      final response = await client
+          .from('emergency_contacts')
+          .update(contact)
+          .eq('id', existingId)
+          .select()
+          .single();
+      return response;
+    } else {
+      // Create new contact
+      final response = await client
+          .from('emergency_contacts')
+          .insert(contact)
+          .select()
+          .single();
+      return response;
+    }
+  }
+
   // ==================== User Settings ====================
 
   /// Get user settings
