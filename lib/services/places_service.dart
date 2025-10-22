@@ -109,6 +109,8 @@ class PlacesService {
   }) async {
     try {
       // Build the URL
+      // Note: Cannot use both 'radius' and 'rankby=distance' together
+      // Using radius to limit search area
       final url =
           Uri.parse(
             'https://maps.googleapis.com/maps/api/place/nearbysearch/json',
@@ -119,7 +121,7 @@ class PlacesService {
               'type': type,
               'keyword': keyword,
               'key': _apiKey,
-              'rankby': 'distance',
+              // Removed 'rankby': 'distance' - cannot be used with radius
             },
           );
 
