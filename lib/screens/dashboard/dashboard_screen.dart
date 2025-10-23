@@ -39,6 +39,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await contactSyncProvider.checkPermission();
     await backgroundProvider.initialize();
 
+    // Auto-detect location on load
+    if (!locationProvider.hasPermission) {
+      final granted = await locationProvider.requestPermission();
+      if (!granted && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location permission is required for this app'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } else {
+      await locationProvider.getCurrentPosition(forceRefresh: true);
+    }
+
     // Load saved contacts if user is signed in
     if (authProvider.userId != null) {
       await emergencyProvider.loadSavedContacts(authProvider.userId!);
@@ -193,6 +208,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildLocationCard() {
     return Consumer<LocationProvider>(
       builder: (context, locationProvider, _) {
+        // Check for permission denied
+        final hasPermissionDenied =
+            !locationProvider.hasPermission &&
+            locationProvider.permissionStatus != null;
+
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(16.0),
@@ -202,37 +222,67 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Row(
                   children: [
                     Icon(
-                      Icons.location_on,
-                      color: Theme.of(context).colorScheme.primary,
+                      hasPermissionDenied
+                          ? Icons.location_off
+                          : Icons.location_on,
+                      color: hasPermissionDenied
+                          ? Colors.red
+                          : Theme.of(context).colorScheme.primary,
                     ),
                     const SizedBox(width: 8),
-                    const Text(
-                      'Current Location',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                    const Expanded(
+                      child: Text(
+                        'Current Location',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
+                    if (locationProvider.isLoading)
+                      const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                if (locationProvider.hasPosition) ...[
-                  Text(
-                    locationProvider.currentAddress?.shortAddress ??
-                        'Lat: ${locationProvider.latitude?.toStringAsFixed(4)}, '
-                            'Lon: ${locationProvider.longitude?.toStringAsFixed(4)}',
-                    style: const TextStyle(fontSize: 14),
+                if (hasPermissionDenied) ...[
+                  const Text(
+                    'Location permission denied',
+                    style: TextStyle(fontSize: 14, color: Colors.red),
                   ),
-                ] else ...[
-                  const Text('Location not available'),
                   const SizedBox(height: 8),
                   ElevatedButton.icon(
                     onPressed: () async {
-                      await locationProvider.requestPermission();
-                      await locationProvider.getCurrentPosition();
+                      await locationProvider.openAppSettings();
                     },
-                    icon: const Icon(Icons.gps_fixed),
-                    label: const Text('Enable Location'),
+                    icon: const Icon(Icons.settings, size: 18),
+                    label: const Text('Open Settings'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ] else if (locationProvider.error != null) ...[
+                  Text(
+                    locationProvider.error!,
+                    style: const TextStyle(fontSize: 14, color: Colors.orange),
+                  ),
+                ] else ...[
+                  Text(
+                    locationProvider.hasPosition
+                        ? (locationProvider.currentAddress?.shortAddress ??
+                              'Lat: ${locationProvider.latitude?.toStringAsFixed(4)}, '
+                                  'Lon: ${locationProvider.longitude?.toStringAsFixed(4)}')
+                        : 'Detecting location...',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: locationProvider.hasPosition
+                          ? Colors.black87
+                          : Colors.grey,
+                    ),
                   ),
                 ],
               ],
