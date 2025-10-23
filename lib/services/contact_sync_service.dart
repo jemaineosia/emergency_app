@@ -49,7 +49,7 @@ class ContactSyncService {
     try {
       final contacts = await FlutterContacts.getContacts(
         withProperties: true,
-        withPhoto: false,
+        withPhoto: true,
       );
 
       // Look for exact match first

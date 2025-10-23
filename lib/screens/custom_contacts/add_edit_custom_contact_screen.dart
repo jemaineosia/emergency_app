@@ -39,6 +39,11 @@ class _AddEditCustomContactScreenState
     super.initState();
     if (isEditMode) {
       _loadExistingContact();
+    } else {
+      // Auto-detect location for new contacts
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _useCurrentLocation();
+      });
     }
   }
 
@@ -511,17 +516,38 @@ class _AddEditCustomContactScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Row(
+              children: [
+                const Icon(Icons.location_on, size: 20, color: Colors.blue),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Adjust Location',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                if (_isLoading)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Info text
             const Text(
-              'Set Location (choose one method)',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              'Current location is auto-detected. You can refine it using:',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
             ),
             const SizedBox(height: 16),
 
-            // Method 1: Current Location
+            // Method 1: Map Picker
             ElevatedButton.icon(
-              onPressed: _isLoading ? null : _useCurrentLocation,
-              icon: const Icon(Icons.my_location),
-              label: const Text('Use My Current Location'),
+              onPressed: _isLoading ? null : _pickLocationOnMap,
+              icon: const Icon(Icons.map),
+              label: const Text('Pick Different Location on Map'),
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 48),
               ),
@@ -529,26 +555,14 @@ class _AddEditCustomContactScreenState
 
             const SizedBox(height: 12),
 
-            // Method 2: Map Picker
-            OutlinedButton.icon(
-              onPressed: _isLoading ? null : _pickLocationOnMap,
-              icon: const Icon(Icons.map),
-              label: const Text('Pick Location on Map'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 48),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Method 3: Text Address (already has button in TextField)
+            // Method 2: Text Address (already has button in TextField)
             const Row(
               children: [
                 Icon(Icons.info_outline, size: 16, color: Colors.grey),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Or enter address above and tap search icon to geocode',
+                    'Or modify address above and tap search icon to update location',
                     style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ),
@@ -566,18 +580,18 @@ class _AddEditCustomContactScreenState
     Color methodColor;
 
     switch (_locationInputMethod) {
-      case 'current':
-        methodText = 'Using current GPS location';
+      case 'current_location':
+        methodText = 'Auto-detected from current GPS';
         methodIcon = Icons.my_location;
         methodColor = Colors.green;
         break;
       case 'map':
-        methodText = 'Location picked on map';
+        methodText = 'Picked on map';
         methodIcon = Icons.map;
         methodColor = Colors.blue;
         break;
       case 'text':
-        methodText = 'Address geocoded from text';
+        methodText = 'Geocoded from address';
         methodIcon = Icons.search;
         methodColor = Colors.orange;
         break;
