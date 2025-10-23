@@ -39,11 +39,6 @@ class _AddEditCustomContactScreenState
     super.initState();
     if (isEditMode) {
       _loadExistingContact();
-    } else {
-      // Auto-detect location for new contacts
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _useCurrentLocation();
-      });
     }
   }
 
@@ -522,7 +517,7 @@ class _AddEditCustomContactScreenState
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
-                    'Adjust Location',
+                    'Set Location',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -534,20 +529,13 @@ class _AddEditCustomContactScreenState
                   ),
               ],
             ),
-            const SizedBox(height: 12),
-
-            // Info text
-            const Text(
-              'Current location is auto-detected. You can refine it using:',
-              style: TextStyle(fontSize: 13, color: Colors.grey),
-            ),
             const SizedBox(height: 16),
 
-            // Method 1: Map Picker
+            // Method 1: Current GPS Location
             ElevatedButton.icon(
-              onPressed: _isLoading ? null : _pickLocationOnMap,
-              icon: const Icon(Icons.map),
-              label: const Text('Pick Different Location on Map'),
+              onPressed: _isLoading ? null : _useCurrentLocation,
+              icon: const Icon(Icons.my_location),
+              label: const Text('Use Current GPS Location'),
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 48),
               ),
@@ -555,14 +543,26 @@ class _AddEditCustomContactScreenState
 
             const SizedBox(height: 12),
 
-            // Method 2: Text Address (already has button in TextField)
+            // Method 2: Map Picker
+            OutlinedButton.icon(
+              onPressed: _isLoading ? null : _pickLocationOnMap,
+              icon: const Icon(Icons.map),
+              label: const Text('Pick Location on Map'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 48),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Method 3: Text Address (already has button in TextField)
             const Row(
               children: [
                 Icon(Icons.info_outline, size: 16, color: Colors.grey),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Or modify address above and tap search icon to update location',
+                    'Or enter address above and tap search icon',
                     style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ),
@@ -581,17 +581,17 @@ class _AddEditCustomContactScreenState
 
     switch (_locationInputMethod) {
       case 'current_location':
-        methodText = 'Auto-detected from current GPS';
+        methodText = 'Using current GPS location';
         methodIcon = Icons.my_location;
         methodColor = Colors.green;
         break;
       case 'map':
-        methodText = 'Picked on map';
+        methodText = 'Location picked on map';
         methodIcon = Icons.map;
         methodColor = Colors.blue;
         break;
       case 'text':
-        methodText = 'Geocoded from address';
+        methodText = 'Address geocoded from text';
         methodIcon = Icons.search;
         methodColor = Colors.orange;
         break;

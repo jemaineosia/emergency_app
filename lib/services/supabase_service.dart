@@ -121,6 +121,21 @@ class SupabaseService {
   }
 
   /// Get AI-generated contacts (POLICE, HOSPITAL, FIRE_STATION)
+  /// Get all active emergency contacts for current user (AI-generated and custom)
+  Future<List<Map<String, dynamic>>> getAllEmergencyContacts() async {
+    if (currentUserId == null) throw Exception('User not signed in');
+
+    final response = await client
+        .from('emergency_contacts')
+        .select()
+        .eq('user_id', currentUserId!)
+        .eq('is_active', true)
+        .order('contact_type');
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Get AI-generated contacts only
   Future<List<Map<String, dynamic>>> getAiGeneratedContacts() async {
     if (currentUserId == null) throw Exception('User not signed in');
 

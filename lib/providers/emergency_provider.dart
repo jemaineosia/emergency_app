@@ -273,11 +273,13 @@ class EmergencyProvider extends ChangeNotifier {
   /// Load saved emergency contacts from Supabase
   Future<void> loadSavedContacts(String userId) async {
     try {
-      final contactsData = await _supabaseService.getAiGeneratedContacts();
+      // Get all active contacts (both AI-generated and custom)
+      final contactsData = await _supabaseService.getAllEmergencyContacts();
 
       _savedContacts.clear();
       for (final data in contactsData) {
         final contact = EmergencyContact.fromJson(data);
+        // Only keep the latest contact for each type
         _savedContacts[contact.contactType] = contact;
       }
 
