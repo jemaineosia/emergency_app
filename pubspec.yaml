@@ -50,7 +50,7 @@ dependencies:
   flutter_contacts: ^1.1.9
   
   # Background tasks
-  workmanager: ^0.5.2
+  workmanager: ^0.6.0
   
   # Phone calling
   url_launcher: ^6.2.1
