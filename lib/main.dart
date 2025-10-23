@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/background_service_provider.dart';
 import 'providers/contact_sync_provider.dart';
+import 'providers/custom_contact_provider.dart';
 import 'providers/emergency_provider.dart';
 import 'providers/location_provider.dart';
 import 'screens/auth/login_screen.dart';
@@ -36,6 +37,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => EmergencyProvider()),
         ChangeNotifierProvider(create: (_) => ContactSyncProvider()),
         ChangeNotifierProvider(create: (_) => BackgroundServiceProvider()),
+        ChangeNotifierProvider(create: (_) => CustomContactProvider()),
       ],
       child: MaterialApp(
         title: 'Emergency App',

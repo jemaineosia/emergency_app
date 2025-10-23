@@ -14,7 +14,9 @@ This app solves the problem of outdated emergency contacts by automatically find
 - 🔐 **Secure Authentication**: Google OAuth, Facebook OAuth, or Anonymous sign-in
 - ⚡ **Background Service**: Works autonomously with configurable intervals (15min-24hrs)
 - 🗺️ **Google Places API**: Finds verified emergency services with phone numbers
-- 📊 **Update History**: Track all contact changes
+- � **Custom Contacts**: Add your own emergency contacts with 3 input methods (GPS, Map Picker, Text Address)
+- 🎯 **Smart Selection**: Compares Google Places vs Custom contacts, selects nearest one
+- �📊 **Update History**: Track all contact changes
 - ⚙️ **Customizable Settings**: Control update frequency, search radius, and auto-update behavior
 
 ## 🏗️ Architecture
@@ -24,12 +26,13 @@ This app solves the problem of outdated emergency contacts by automatically find
 - **Google Places API (Legacy)**: Emergency service discovery with phone numbers
 
 ### State Management
-- **Provider Pattern**: 5 providers for clean state management
+- **Provider Pattern**: 6 providers for clean state management
   - `AuthProvider`: User authentication & profile
   - `LocationProvider`: GPS tracking & permissions
-  - `EmergencyProvider`: Emergency service search & management
+  - `EmergencyProvider`: Emergency service search & management with smart selection
   - `ContactSyncProvider`: Phone contact synchronization
   - `BackgroundServiceProvider`: Autonomous update scheduling
+  - `CustomContactProvider`: Custom emergency contact management
 
 ### Services Layer
 - `SupabaseService`: Database CRUD operations
@@ -39,9 +42,11 @@ This app solves the problem of outdated emergency contacts by automatically find
 - `PlacesService`: Google Places API integration
 - `ContactSyncService`: Phone contact management
 - `BackgroundService`: WorkManager task scheduler
+- `CustomContactService`: Custom contact CRUD + smart selection logic
 
 ## 📱 How It Works
 
+### Standard Mode (Google Places)
 1. **User Signs In**: Google/Facebook OAuth or Anonymous authentication
 2. **Location Detection**: App requests GPS permissions and gets current coordinates
 3. **Emergency Search**: Searches Google Places API for nearest:
@@ -52,6 +57,20 @@ This app solves the problem of outdated emergency contacts by automatically find
 5. **Background Updates**: WorkManager runs periodic checks (configurable interval)
 6. **Movement Detection**: Updates contacts when user moves >5km from last location
 7. **History Tracking**: Logs all changes to Supabase database
+
+### Custom Contacts Mode (New!)
+1. **Add Custom Contact**: Navigate to "Manage" from dashboard
+2. **Choose Input Method**:
+   - 📍 **Current GPS**: Uses your exact location + reverse geocoding
+   - 🗺️ **Map Picker**: Drag a marker on Google Maps to select location
+   - ⌨️ **Text Address**: Type address, app converts to coordinates
+3. **Save to Database**: Contact saved with `is_custom` flag
+4. **Smart Selection**: When refreshing contacts, app:
+   - Fetches Google Places results
+   - Fetches your custom contacts
+   - Calculates distance from your location to each option
+   - Selects and saves the nearest one (Google or Custom)
+5. **Visual Indicator**: Custom contacts show blue "Custom" badge on dashboard
 
 ## 🗄️ Database Schema
 
@@ -80,6 +99,7 @@ emergency_contacts (
   longitude DOUBLE PRECISION,
   place_id TEXT,
   is_ai_generated BOOLEAN,
+  is_custom BOOLEAN DEFAULT false, -- NEW: Marks user-added contacts
   is_active BOOLEAN,
   created_at TIMESTAMP,
   updated_at TIMESTAMP
@@ -209,12 +229,17 @@ class GoogleConfig {
 - [x] Settings screen
 - [x] Dashboard UI
 - [x] Error handling and logging
+- [x] **Custom emergency contacts** (Manual entry with 3 input methods)
+- [x] **Smart selection algorithm** (Google vs Custom distance comparison)
+- [x] **Interactive map picker** (Google Maps marker for location selection)
+- [x] **Geocoding integration** (Address ↔ Coordinates conversion)
+- [x] **Distance-based sorting** (Contacts sorted by proximity)
+- [x] **Visual indicators** (Blue "Custom" badge on user-added contacts)
 
 ### 🎯 Future Enhancements
 
 - [ ] Migrate to Places API (New) for better features
-- [ ] Add map view showing emergency services
-- [ ] Support custom emergency contacts
+- [ ] Add map view showing all emergency services on dashboard
 - [ ] International phone number formatting
 - [ ] Offline mode with cached contacts
 - [ ] Push notifications for contact updates
@@ -222,6 +247,8 @@ class GoogleConfig {
 - [ ] Emergency calling shortcuts
 - [ ] Contact sharing features
 - [ ] Analytics dashboard
+- [ ] Import/export custom contacts
+- [ ] Custom contact categories (beyond police/hospital/fire)
 
 ## 🧪 Testing
 
@@ -237,10 +264,12 @@ Run the comprehensive testing checklist:
 2. **Permissions** (5 min): Location (always/when-in-use), Contacts, Phone
 3. **Contact Discovery** (10 min): Search for all 3 emergency types
 4. **Phone Sync** (10 min): Verify native contacts created
-5. **Settings** (5 min): Configure intervals, radius, auto-update
-6. **Background Service** (15-30 min): Test autonomous updates
-7. **Update History** (5 min): Verify logging
-8. **Edge Cases** (10 min): No GPS, no results, API errors
+5. **Custom Contacts** (15 min): Test all 3 input methods (GPS, Map, Text)
+6. **Smart Selection** (10 min): Add custom contact closer than Google, verify it wins
+7. **Settings** (5 min): Configure intervals, radius, auto-update
+8. **Background Service** (15-30 min): Test autonomous updates
+9. **Update History** (5 min): Verify logging
+10. **Edge Cases** (10 min): No GPS, no results, API errors
 
 ## 📦 Dependencies
 
@@ -253,6 +282,7 @@ Run the comprehensive testing checklist:
 - `geolocator` (12.0.0) - GPS tracking
 - `geocoding` (3.0.0) - Address lookups
 - `google_places_flutter` - Places API (legacy)
+- `google_maps_flutter` (^2.5.0) - Interactive map picker for custom contacts
 
 ### Contacts & Permissions
 - `flutter_contacts` (1.1.9) - Phone contact management
@@ -279,9 +309,9 @@ Run the comprehensive testing checklist:
 
 | Platform | Status | Notes |
 |----------|--------|-------|
-| iOS      | ✅ Tested | Requires iOS 12.0+ |
+| iOS      | ✅ Tested | Requires iOS 14.0+ (updated for Google Maps) |
 | Android  | ✅ Ready | Requires Android 6.0+ (API 23+) |
-| Web      | ⚠️ Limited | No contact sync, no background service |
+| Web      | ⚠️ Limited | No contact sync, no background service, no map picker |
 | macOS    | ⚠️ Limited | No contact sync |
 | Windows  | ❌ Not supported | No contact APIs |
 | Linux    | ❌ Not supported | No contact APIs |
@@ -291,6 +321,10 @@ Run the comprehensive testing checklist:
 ### Google Places API
 - **Issue**: `INVALID_REQUEST` error
 - **Solution**: Cannot use both `radius` and `rankby=distance` parameters together. Code uses `radius` only.
+
+### iOS Deployment Target
+- **Issue**: Google Maps Flutter requires iOS 14.0+
+- **Solution**: Updated `ios/Podfile` and `ios/Flutter/AppFrameworkInfo.plist` to iOS 14.0
 
 ### iOS Background Updates
 - **Issue**: Background updates may be limited by iOS battery optimization
@@ -335,7 +369,16 @@ For issues, questions, or feature requests:
 
 ## 🔄 Version History
 
-### v2.0.0 (Current)
+### v2.1.0 (Current - October 2025)
+- ✨ **Custom Emergency Contacts**: Add your own contacts manually
+- 🗺️ **3 Input Methods**: Current GPS, Interactive Map Picker, Text Address
+- 🎯 **Smart Selection**: Compares Google vs Custom, selects nearest
+- 📏 **Distance Calculations**: Haversine formula for accurate proximity
+- 🏷️ **Visual Indicators**: Blue "Custom" badge on user-added contacts
+- 📱 **iOS 14.0+ Support**: Updated for Google Maps Flutter compatibility
+- 🔧 **Bug Fixes**: Layout overflow fixes, API compatibility updates
+
+### v2.0.0 (September 2025)
 - Complete rewrite from voice-activated to location-based
 - Switched from Firebase to Supabase
 - Integrated Google Places API
@@ -343,7 +386,7 @@ For issues, questions, or feature requests:
 - Added phone contact synchronization
 - OAuth-only authentication (removed email/password)
 
-### v1.0.0 (Deprecated)
+### v1.0.0 (Deprecated - 2024)
 - Voice-activated emergency calling
 - Firebase backend
 - iOS wake word detection (discontinued due to iOS limitations)

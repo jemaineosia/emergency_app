@@ -6,6 +6,7 @@ import '../../providers/background_service_provider.dart';
 import '../../providers/contact_sync_provider.dart';
 import '../../providers/emergency_provider.dart';
 import '../../providers/location_provider.dart';
+import '../custom_contacts/custom_contacts_screen.dart';
 import '../history/update_history_screen.dart';
 import '../settings/settings_screen.dart';
 
@@ -90,9 +91,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return;
     }
 
-    // Save to database
+    // Save to database with smart selection (Google vs Custom)
     final saved = await emergencyProvider.saveEmergencyServices(
       authProvider.userId!,
+      userLatitude: locationProvider.latitude!,
+      userLongitude: locationProvider.longitude!,
     );
     if (!saved) {
       if (mounted) {
@@ -121,6 +124,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SnackBar(content: Text('Emergency contacts updated!')),
       );
     }
+  }
+
+  void _navigateToCustomContacts() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const CustomContactsScreen()),
+    );
   }
 
   @override
@@ -278,9 +288,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Emergency Services',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Emergency Services',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _navigateToCustomContacts,
+                  icon: const Icon(Icons.add_circle_outline, size: 18),
+                  label: const Text('Manage', style: TextStyle(fontSize: 13)),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Theme.of(context).primaryColor,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             if (emergencyProvider.savedPolice != null)
@@ -300,6 +326,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final phone = contact.phoneNumber ?? 'No phone number';
     final address = contact.address ?? 'No address';
     final emoji = contact.contactType.emoji;
+    final isCustom = contact.isCustom ?? false;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -307,7 +334,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
         leading: CircleAvatar(
           child: Text(emoji, style: const TextStyle(fontSize: 24)),
         ),
-        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                name,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            if (isCustom)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.blue[100],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'Custom',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
+                ),
+              ),
+          ],
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

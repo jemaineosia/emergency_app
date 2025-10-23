@@ -1,3 +1,5 @@
+import 'dart:math';
+
 enum ContactType {
   police,
   hospital,
@@ -70,6 +72,7 @@ class EmergencyContact {
   final double? longitude;
   final String? placeId; // Google Places ID
   final bool isAiGenerated;
+  final bool isCustom; // User-added manual contact
   final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -85,6 +88,7 @@ class EmergencyContact {
     this.longitude,
     this.placeId,
     required this.isAiGenerated,
+    this.isCustom = false,
     required this.isActive,
     required this.createdAt,
     required this.updatedAt,
@@ -102,6 +106,7 @@ class EmergencyContact {
       longitude: json['longitude'] as double?,
       placeId: json['place_id'] as String?,
       isAiGenerated: json['is_ai_generated'] as bool,
+      isCustom: json['is_custom'] as bool? ?? false,
       isActive: json['is_active'] as bool,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
@@ -120,6 +125,7 @@ class EmergencyContact {
       'longitude': longitude,
       'place_id': placeId,
       'is_ai_generated': isAiGenerated,
+      'is_custom': isCustom,
       'is_active': isActive,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
@@ -137,6 +143,7 @@ class EmergencyContact {
       'longitude': longitude,
       'place_id': placeId,
       'is_ai_generated': isAiGenerated,
+      'is_custom': isCustom,
       'is_active': isActive,
     };
   }
@@ -152,6 +159,7 @@ class EmergencyContact {
     double? longitude,
     String? placeId,
     bool? isAiGenerated,
+    bool? isCustom,
     bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -167,9 +175,50 @@ class EmergencyContact {
       longitude: longitude ?? this.longitude,
       placeId: placeId ?? this.placeId,
       isAiGenerated: isAiGenerated ?? this.isAiGenerated,
+      isCustom: isCustom ?? this.isCustom,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+
+  /// Calculate distance from given coordinates (in meters)
+  double? distanceFrom(double? userLat, double? userLon) {
+    if (userLat == null ||
+        userLon == null ||
+        latitude == null ||
+        longitude == null) {
+      return null;
+    }
+
+    // Using Haversine formula
+    const R = 6371000; // Earth's radius in meters
+    final lat1 = userLat * (pi / 180);
+    final lat2 = latitude! * (pi / 180);
+    final dLat = (latitude! - userLat) * (pi / 180);
+    final dLon = (longitude! - userLon) * (pi / 180);
+
+    final a =
+        sin(dLat / 2) * sin(dLat / 2) +
+        cos(lat1) * cos(lat2) * sin(dLon / 2) * sin(dLon / 2);
+    final c = 2 * asin(sqrt(a));
+
+    return R * c;
+  }
+
+  /// Get formatted distance string (e.g., "1.2 km", "850 m")
+  String getDistanceString(double? userLat, double? userLon) {
+    final distance = distanceFrom(userLat, userLon);
+    if (distance == null) return 'Unknown distance';
+
+    if (distance < 1000) {
+      return '${distance.round()} m';
+    } else {
+      return '${(distance / 1000).toStringAsFixed(1)} km';
+    }
+  }
+
+  /// Get source badge text
+  String get sourceBadge =>
+      isCustom ? 'Custom' : (isAiGenerated ? 'Google' : 'Manual');
 }

@@ -44,6 +44,7 @@ dependencies:
   
   # Google Places API
   google_places_flutter: ^2.1.1
+  google_maps_flutter: ^2.5.0
   http: ^1.2.0
   
   # Contact management

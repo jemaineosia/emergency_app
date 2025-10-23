@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/emergency_contact.dart';
+import '../services/custom_contact_service.dart';
 import '../services/places_service.dart';
 import '../services/supabase_service.dart';
 
@@ -8,6 +9,8 @@ import '../services/supabase_service.dart';
 class EmergencyProvider extends ChangeNotifier {
   final PlacesService _placesService = PlacesService.instance;
   final SupabaseService _supabaseService = SupabaseService.instance;
+  final CustomContactService _customContactService =
+      CustomContactService.instance;
 
   Map<ContactType, EmergencyPlaceResult?> _emergencyServices = {};
   final Map<ContactType, EmergencyContact?> _savedContacts = {};
@@ -146,7 +149,12 @@ class EmergencyProvider extends ChangeNotifier {
   // ==================== Save to Database ====================
 
   /// Save emergency services to Supabase
-  Future<bool> saveEmergencyServices(String userId) async {
+  /// Uses smart selection to compare Google Places results vs custom contacts
+  Future<bool> saveEmergencyServices(
+    String userId, {
+    required double userLatitude,
+    required double userLongitude,
+  }) async {
     if (!hasAllServices) {
       _error = 'No emergency services to save';
       notifyListeners();
@@ -158,11 +166,11 @@ class EmergencyProvider extends ChangeNotifier {
       _error = null;
       notifyListeners();
 
-      // Convert to EmergencyContact models
-      final contacts = <EmergencyContact>[];
+      // Convert Google Places results to EmergencyContact models
+      final googleContacts = <EmergencyContact>[];
 
       if (nearestPolice != null) {
-        contacts.add(
+        googleContacts.add(
           nearestPolice!.toEmergencyContact(
             userId: userId,
             contactType: ContactType.police,
@@ -171,7 +179,7 @@ class EmergencyProvider extends ChangeNotifier {
       }
 
       if (nearestHospital != null) {
-        contacts.add(
+        googleContacts.add(
           nearestHospital!.toEmergencyContact(
             userId: userId,
             contactType: ContactType.hospital,
@@ -180,7 +188,7 @@ class EmergencyProvider extends ChangeNotifier {
       }
 
       if (nearestFireStation != null) {
-        contacts.add(
+        googleContacts.add(
           nearestFireStation!.toEmergencyContact(
             userId: userId,
             contactType: ContactType.fireStation,
@@ -188,8 +196,38 @@ class EmergencyProvider extends ChangeNotifier {
         );
       }
 
-      // Save to database
-      for (final contact in contacts) {
+      // Smart Selection: Compare Google vs Custom for each type
+      final contactsToSave = <EmergencyContact>[];
+
+      for (final type in [
+        ContactType.police,
+        ContactType.hospital,
+        ContactType.fireStation,
+      ]) {
+        // Get Google result for this type
+        final googleResults = googleContacts
+            .where((c) => c.contactType == type)
+            .toList();
+
+        // Find nearest (Google or Custom)
+        final nearest = await _customContactService.findNearestContact(
+          type: type,
+          googleResults: googleResults,
+          userLatitude: userLatitude,
+          userLongitude: userLongitude,
+        );
+
+        if (nearest != null) {
+          contactsToSave.add(nearest);
+          print(
+            '✓ Selected ${type.displayName}: ${nearest.name} '
+            '(${nearest.sourceBadge})',
+          );
+        }
+      }
+
+      // Save to database (will insert or update based on user_id + contact_type)
+      for (final contact in contactsToSave) {
         await _supabaseService.upsertEmergencyContact(contact.toInsertJson());
       }
 
@@ -267,8 +305,12 @@ class EmergencyProvider extends ChangeNotifier {
       return false;
     }
 
-    // Save to database
-    return await saveEmergencyServices(userId);
+    // Save to database with smart selection
+    return await saveEmergencyServices(
+      userId,
+      userLatitude: latitude,
+      userLongitude: longitude,
+    );
   }
 
   // ==================== Check for Updates ====================
