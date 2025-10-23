@@ -782,10 +782,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Icons.phone,
             color: hasValidPhone ? Colors.green : Colors.grey,
           ),
-          onPressed: hasValidPhone ? () {
-            print('📞 Calling $phone from single card');
-            _makePhoneCall(phone);
-          } : null,
+          onPressed: hasValidPhone
+              ? () {
+                  print('📞 Calling $phone from single card');
+                  _makePhoneCall(phone);
+                }
+              : null,
           tooltip: hasValidPhone ? 'Call $phone' : 'No phone number available',
         ),
       ),
