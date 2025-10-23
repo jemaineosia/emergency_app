@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../models/emergency_contact.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/background_service_provider.dart';
 import '../../providers/contact_sync_provider.dart';
 import '../../providers/emergency_provider.dart';
 import '../../providers/location_provider.dart';
+import '../../services/supabase_service.dart';
 import '../custom_contacts/custom_contacts_screen.dart';
 import '../history/update_history_screen.dart';
 import '../settings/settings_screen.dart';
@@ -302,36 +305,113 @@ class _DashboardScreenState extends State<DashboardScreen> {
             emergencyProvider.savedFireStation != null;
 
         if (!hasContacts) {
-          return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.warning_amber,
-                    size: 64,
-                    color: Colors.orange[300],
+          return FutureBuilder<String>(
+            future: _getFallbackNumber(),
+            builder: (context, snapshot) {
+              final fallbackNumber = snapshot.data ?? '911';
+
+              return Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.warning_amber,
+                        size: 64,
+                        color: Colors.orange[300],
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'No Emergency Contacts Found',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Pull down to refresh and find nearest emergency services',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                      const SizedBox(height: 24),
+                      const Divider(),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Icon(Icons.emergency, color: Colors.red[700]),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Emergency Fallback Number',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.red[50],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.red[200]!),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    fallbackNumber,
+                                    style: TextStyle(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.red[700],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Universal emergency number',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.red[700],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            ElevatedButton.icon(
+                              onPressed: () => _makePhoneCall(fallbackNumber),
+                              icon: const Icon(Icons.phone, size: 18),
+                              label: const Text('CALL'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red[700],
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      OutlinedButton.icon(
+                        onPressed: _refreshContacts,
+                        icon: const Icon(Icons.search),
+                        label: const Text('Find Emergency Services'),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'No Emergency Contacts',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Pull down to refresh and find nearest emergency services',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: _refreshContacts,
-                    icon: const Icon(Icons.search),
-                    label: const Text('Find Emergency Services'),
-                  ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           );
         }
 
@@ -359,16 +439,281 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            if (emergencyProvider.savedPolice != null)
+            // Show Police contacts
+            if (emergencyProvider
+                    .allContactOptions[ContactType.police]
+                    ?.isNotEmpty ==
+                true)
+              _buildContactOptionsCard(
+                ContactType.police,
+                emergencyProvider.allContactOptions[ContactType.police]!,
+              )
+            else if (emergencyProvider.savedPolice != null)
               _buildContactCard(emergencyProvider.savedPolice!),
-            if (emergencyProvider.savedHospital != null)
+
+            // Show Hospital contacts
+            if (emergencyProvider
+                    .allContactOptions[ContactType.hospital]
+                    ?.isNotEmpty ==
+                true)
+              _buildContactOptionsCard(
+                ContactType.hospital,
+                emergencyProvider.allContactOptions[ContactType.hospital]!,
+              )
+            else if (emergencyProvider.savedHospital != null)
               _buildContactCard(emergencyProvider.savedHospital!),
-            if (emergencyProvider.savedFireStation != null)
+
+            // Show Fire Station contacts
+            if (emergencyProvider
+                    .allContactOptions[ContactType.fireStation]
+                    ?.isNotEmpty ==
+                true)
+              _buildContactOptionsCard(
+                ContactType.fireStation,
+                emergencyProvider.allContactOptions[ContactType.fireStation]!,
+              )
+            else if (emergencyProvider.savedFireStation != null)
               _buildContactCard(emergencyProvider.savedFireStation!),
           ],
         );
       },
     );
+  }
+
+  /// Build a card showing multiple contact options for a type
+  Widget _buildContactOptionsCard(ContactType type, List<dynamic> contacts) {
+    if (contacts.isEmpty) return const SizedBox.shrink();
+
+    // If only one contact, show regular card
+    if (contacts.length == 1) {
+      return _buildContactCard(contacts.first);
+    }
+
+    // Multiple contacts - show primary (nearest) + alternatives
+    final nearestContact = contacts.first;
+    final alternatives = contacts.skip(1).toList();
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        children: [
+          // NEAREST contact - always visible in main view
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Row(
+                  children: [
+                    Icon(Icons.star, size: 16, color: Colors.amber[700]),
+                    const SizedBox(width: 4),
+                    Text(
+                      'NEAREST ${type.displayName.toUpperCase()}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[600],
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _buildContactTile(
+                nearestContact,
+                isPrimary: true,
+                showDistance: true,
+              ),
+            ],
+          ),
+
+          // ALTERNATIVE contacts - in expandable section
+          if (alternatives.isNotEmpty) ...[
+            const Divider(height: 1),
+            ExpansionTile(
+              title: Row(
+                children: [
+                  Icon(Icons.list_alt, size: 16, color: Colors.grey[600]),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${alternatives.length} Alternative${alternatives.length > 1 ? 's' : ''} Available',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                ],
+              ),
+              subtitle: Text(
+                'Tap to see other nearby options',
+                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              ),
+              tilePadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              childrenPadding: EdgeInsets.zero,
+              children: alternatives.asMap().entries.map((entry) {
+                final index = entry.key;
+                final contact = entry.value;
+                return Column(
+                  children: [
+                    const Divider(height: 1),
+                    _buildContactTile(
+                      contact,
+                      isPrimary: false,
+                      showDistance: true,
+                      alternativeNumber:
+                          index + 2, // 2nd nearest, 3rd nearest, etc.
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Build a contact tile (used within cards)
+  Widget _buildContactTile(
+    dynamic contact, {
+    required bool isPrimary,
+    bool showDistance = false,
+    int? alternativeNumber,
+  }) {
+    final name = contact.name ?? contact.contactType.displayName;
+    final phone = contact.phoneNumber ?? 'No phone number';
+    final address = contact.address ?? 'No address';
+    final emoji = contact.contactType.emoji;
+    final isCustom = contact.isCustom ?? false;
+    final sourceBadge = contact.sourceBadge ?? (isCustom ? 'Custom' : 'Google');
+
+    // Simple validation: just check if not empty or placeholder
+    final hasValidPhone =
+        phone.isNotEmpty &&
+        phone != 'No phone number' &&
+        phone != 'N/A' &&
+        phone != '-';
+
+    // Debug: Log validation for each contact
+    print(
+      '🔍 Dashboard checking ${contact.name}: phone="$phone", hasValidPhone=$hasValidPhone',
+    );
+
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: isPrimary
+            ? Theme.of(context).primaryColor
+            : Colors.grey[300],
+        child: Text(emoji, style: const TextStyle(fontSize: 24)),
+      ),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              name,
+              style: TextStyle(
+                fontWeight: isPrimary ? FontWeight.bold : FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 4),
+          if (alternativeNumber != null) ...[
+            Container(
+              margin: const EdgeInsets.only(right: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$alternativeNumber${_getOrdinalSuffix(alternativeNumber)}',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[700],
+                ),
+              ),
+            ),
+          ],
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: isCustom ? Colors.purple[50] : Colors.blue[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isCustom ? Colors.purple[200]! : Colors.blue[200]!,
+              ),
+            ),
+            child: Text(
+              sourceBadge,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: isCustom ? Colors.purple[700] : Colors.blue[700],
+              ),
+            ),
+          ),
+        ],
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.phone, size: 16),
+              const SizedBox(width: 4),
+              Text(phone, style: const TextStyle(fontWeight: FontWeight.w500)),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              const Icon(Icons.location_on, size: 16),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  address,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      trailing: IconButton(
+        icon: Icon(
+          Icons.phone,
+          color: hasValidPhone ? Colors.green : Colors.grey,
+        ),
+        onPressed: hasValidPhone ? () => _makePhoneCall(phone) : null,
+        tooltip: hasValidPhone ? 'Call $phone' : 'No phone number available',
+      ),
+      onTap: () => _showContactDetails(contact),
+    );
+  }
+
+  /// Get ordinal suffix for numbers (1st, 2nd, 3rd, etc.)
+  String _getOrdinalSuffix(int number) {
+    if (number >= 11 && number <= 13) {
+      return 'th';
+    }
+    switch (number % 10) {
+      case 1:
+        return 'st';
+      case 2:
+        return 'nd';
+      case 3:
+        return 'rd';
+      default:
+        return 'th';
+    }
   }
 
   Widget _buildContactCard(dynamic contact) {
@@ -377,6 +722,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final address = contact.address ?? 'No address';
     final emoji = contact.contactType.emoji;
     final isCustom = contact.isCustom ?? false;
+
+    // Simple validation: just check if not empty or placeholder
+    final hasValidPhone =
+        phone.isNotEmpty &&
+        phone != 'No phone number' &&
+        phone != 'N/A' &&
+        phone != '-';
+
+    // Debug: Log validation for single contact card
+    print(
+      '🔍 Dashboard (single card) checking $name: phone="$phone", hasValidPhone=$hasValidPhone',
+    );
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -421,10 +778,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         isThreeLine: true,
         trailing: IconButton(
-          icon: const Icon(Icons.phone),
-          onPressed: () {
-            // TODO: Make call
-          },
+          icon: Icon(
+            Icons.phone,
+            color: hasValidPhone ? Colors.green : Colors.grey,
+          ),
+          onPressed: hasValidPhone ? () {
+            print('📞 Calling $phone from single card');
+            _makePhoneCall(phone);
+          } : null,
+          tooltip: hasValidPhone ? 'Call $phone' : 'No phone number available',
         ),
       ),
     );
@@ -486,6 +848,106 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         );
       },
+    );
+  }
+
+  /// Get fallback emergency number from settings
+  Future<String> _getFallbackNumber() async {
+    try {
+      final settings = await SupabaseService.instance.getUserSettings();
+      return settings?['fallback_number'] as String? ?? '911';
+    } catch (e) {
+      print('Error getting fallback number: $e');
+      return '911';
+    }
+  }
+
+  /// Make a phone call to the given number
+  Future<void> _makePhoneCall(String phoneNumber) async {
+    final Uri phoneUri = Uri(scheme: 'tel', path: phoneNumber);
+    if (await canLaunchUrl(phoneUri)) {
+      await launchUrl(phoneUri);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not call $phoneNumber')));
+      }
+    }
+  }
+
+  /// Show contact details in a dialog
+  void _showContactDetails(dynamic contact) {
+    final name = contact.name ?? contact.contactType.displayName;
+    final phone = contact.phoneNumber ?? 'No phone number';
+    final address = contact.address ?? 'No address';
+    final emoji = contact.contactType.emoji;
+    final isCustom = contact.isCustom ?? false;
+    final sourceBadge = contact.sourceBadge ?? (isCustom ? 'Custom' : 'Google');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 32)),
+            const SizedBox(width: 12),
+            Expanded(child: Text(name)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.label),
+              title: const Text('Source'),
+              subtitle: Text(sourceBadge),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.phone),
+              title: const Text('Phone'),
+              subtitle: Text(phone),
+              trailing: IconButton(
+                icon: const Icon(Icons.phone, color: Colors.green),
+                onPressed: () => _makePhoneCall(phone),
+              ),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.location_on),
+              title: const Text('Address'),
+              subtitle: Text(address),
+            ),
+            if (contact.latitude != null && contact.longitude != null)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.map),
+                title: const Text('Coordinates'),
+                subtitle: Text(
+                  '${contact.latitude?.toStringAsFixed(6)}, '
+                  '${contact.longitude?.toStringAsFixed(6)}',
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              _makePhoneCall(phone);
+            },
+            icon: const Icon(Icons.phone),
+            label: const Text('Call'),
+          ),
+        ],
+      ),
     );
   }
 }

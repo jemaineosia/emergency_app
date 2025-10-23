@@ -17,6 +17,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _autoUpdateEnabled = true;
   int _updateIntervalMinutes = 60;
   double _locationRadiusKm = 10.0;
+  String _fallbackNumber = '911'; // Default fallback number
+  final _fallbackNumberController = TextEditingController();
   bool _isLoading = true;
   bool _isSaving = false;
 
@@ -24,6 +26,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _loadSettings();
+  }
+
+  @override
+  void dispose() {
+    _fallbackNumberController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadSettings() async {
@@ -37,10 +45,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _updateIntervalMinutes = settings['update_interval_minutes'] ?? 60;
           _locationRadiusKm = (settings['location_radius_km'] ?? 10.0)
               .toDouble();
+          _fallbackNumber = settings['fallback_number'] ?? '911';
+          _fallbackNumberController.text = _fallbackNumber;
         });
+      } else {
+        _fallbackNumberController.text = _fallbackNumber;
       }
     } catch (e) {
       print('Error loading settings: $e');
+      _fallbackNumberController.text = _fallbackNumber;
     } finally {
       setState(() {
         _isLoading = false;
@@ -59,6 +72,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'auto_update_enabled': _autoUpdateEnabled,
         'update_interval_minutes': _updateIntervalMinutes,
         'location_radius_km': _locationRadiusKm,
+        'fallback_number': _fallbackNumberController.text.trim(),
       });
 
       // Update background service schedule
@@ -111,6 +125,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildUpdateIntervalSection(),
                 const Divider(),
                 _buildLocationRadiusSection(),
+                const Divider(),
+                _buildFallbackNumberSection(),
                 const Divider(),
                 _buildAccountSection(),
               ],
@@ -198,6 +214,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Text('1 km', style: Theme.of(context).textTheme.bodySmall),
               Text('50 km', style: Theme.of(context).textTheme.bodySmall),
             ],
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildFallbackNumberSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ListTile(
+          leading: const Icon(Icons.emergency),
+          title: const Text('Fallback Emergency Number'),
+          subtitle: const Text(
+            'Universal emergency number to call when no contacts are found',
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: TextField(
+            controller: _fallbackNumberController,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(
+              labelText: 'Emergency Number',
+              hintText: 'e.g., 911, 999, 112',
+              border: OutlineInputBorder(),
+              helperText: 'Enter the primary emergency number for your region',
+            ),
+            onChanged: (value) {
+              setState(() {
+                _fallbackNumber = value;
+              });
+            },
           ),
         ),
         const SizedBox(height: 16),

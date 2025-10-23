@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/emergency_contact.dart';
 import '../services/custom_contact_service.dart';
+import '../services/location_service.dart';
 import '../services/places_service.dart';
 import '../services/supabase_service.dart';
 
@@ -9,11 +10,14 @@ import '../services/supabase_service.dart';
 class EmergencyProvider extends ChangeNotifier {
   final PlacesService _placesService = PlacesService.instance;
   final SupabaseService _supabaseService = SupabaseService.instance;
+  final LocationService _locationService = LocationService.instance;
   final CustomContactService _customContactService =
       CustomContactService.instance;
 
   Map<ContactType, EmergencyPlaceResult?> _emergencyServices = {};
   final Map<ContactType, EmergencyContact?> _savedContacts = {};
+  // Store both Google and Custom contacts for each type
+  final Map<ContactType, List<EmergencyContact>> _allContactOptions = {};
   bool _isSearching = false;
   bool _isSaving = false;
   String? _error;
@@ -24,6 +28,10 @@ class EmergencyProvider extends ChangeNotifier {
   Map<ContactType, EmergencyPlaceResult?> get emergencyServices =>
       _emergencyServices;
   Map<ContactType, EmergencyContact?> get savedContacts => _savedContacts;
+
+  /// Get all contact options (both Google and Custom) for each type
+  Map<ContactType, List<EmergencyContact>> get allContactOptions =>
+      _allContactOptions;
   bool get isSearching => _isSearching;
   bool get isSaving => _isSaving;
   bool get isLoading => _isSearching || _isSaving;
@@ -83,10 +91,12 @@ class EmergencyProvider extends ChangeNotifier {
         return false;
       }
 
-      // Check if all services have phone numbers
+      // Note: We no longer treat missing phone numbers as an error
+      // The fallback number will be used instead
       if (!hasAllPhoneNumbers) {
-        _error = 'Some emergency services do not have phone numbers';
-        return false;
+        print(
+          '⚠️ Some emergency services missing phone numbers - fallback will be used',
+        );
       }
 
       return true;
@@ -149,7 +159,8 @@ class EmergencyProvider extends ChangeNotifier {
   // ==================== Save to Database ====================
 
   /// Save emergency services to Supabase
-  /// Uses smart selection to compare Google Places results vs custom contacts
+  /// Saves the NEAREST contact to database (Google or Custom)
+  /// But stores ALL options in _allContactOptions for UI display
   Future<bool> saveEmergencyServices(
     String userId, {
     required double userLatitude,
@@ -166,67 +177,146 @@ class EmergencyProvider extends ChangeNotifier {
       _error = null;
       notifyListeners();
 
+      // Get fallback number from settings
+      final settings = await _supabaseService.getUserSettings();
+      final fallbackNumber = settings?['fallback_number'] as String? ?? '911';
+
       // Convert Google Places results to EmergencyContact models
       final googleContacts = <EmergencyContact>[];
 
       if (nearestPolice != null) {
-        googleContacts.add(
-          nearestPolice!.toEmergencyContact(
-            userId: userId,
-            contactType: ContactType.police,
-          ),
+        var contact = nearestPolice!.toEmergencyContact(
+          userId: userId,
+          contactType: ContactType.police,
         );
+
+        // Use fallback if no phone number or placeholder text
+        if (contact.phoneNumber.isEmpty ||
+            contact.phoneNumber == 'No phone number' ||
+            contact.phoneNumber == 'N/A' ||
+            contact.phoneNumber == '-') {
+          contact = contact.copyWith(phoneNumber: fallbackNumber);
+          print(
+            '⚠️ Police has no phone number - using fallback: $fallbackNumber',
+          );
+        } else {
+          // Clean phone number (remove spaces, dashes, parentheses)
+          final cleaned = contact.phoneNumber.replaceAll(RegExp(r'[^\d+]'), '');
+          contact = contact.copyWith(phoneNumber: cleaned);
+        }
+        googleContacts.add(contact);
       }
 
       if (nearestHospital != null) {
-        googleContacts.add(
-          nearestHospital!.toEmergencyContact(
-            userId: userId,
-            contactType: ContactType.hospital,
-          ),
+        var contact = nearestHospital!.toEmergencyContact(
+          userId: userId,
+          contactType: ContactType.hospital,
         );
+        print('🏥 Hospital phone number from Google: "${contact.phoneNumber}"');
+
+        // Use fallback if no phone number or placeholder text
+        if (contact.phoneNumber.isEmpty ||
+            contact.phoneNumber == 'No phone number' ||
+            contact.phoneNumber == 'N/A' ||
+            contact.phoneNumber == '-') {
+          contact = contact.copyWith(phoneNumber: fallbackNumber);
+          print(
+            '⚠️ Hospital has no phone number - using fallback: $fallbackNumber',
+          );
+        } else {
+          // Clean phone number (remove spaces, dashes, parentheses)
+          final cleaned = contact.phoneNumber.replaceAll(RegExp(r'[^\d+]'), '');
+          contact = contact.copyWith(phoneNumber: cleaned);
+        }
+        googleContacts.add(contact);
       }
 
       if (nearestFireStation != null) {
-        googleContacts.add(
-          nearestFireStation!.toEmergencyContact(
-            userId: userId,
-            contactType: ContactType.fireStation,
-          ),
+        var contact = nearestFireStation!.toEmergencyContact(
+          userId: userId,
+          contactType: ContactType.fireStation,
         );
+        print(
+          '🚒 Fire Station phone number from Google: "${contact.phoneNumber}"',
+        );
+
+        // Use fallback if no phone number or placeholder text
+        if (contact.phoneNumber.isEmpty ||
+            contact.phoneNumber == 'No phone number' ||
+            contact.phoneNumber == 'N/A' ||
+            contact.phoneNumber == '-') {
+          contact = contact.copyWith(phoneNumber: fallbackNumber);
+          print(
+            '⚠️ Fire Station has no phone number - using fallback: $fallbackNumber',
+          );
+        } else {
+          // Clean phone number (remove spaces, dashes, parentheses)
+          final cleaned = contact.phoneNumber.replaceAll(RegExp(r'[^\d+]'), '');
+          contact = contact.copyWith(phoneNumber: cleaned);
+        }
+        googleContacts.add(contact);
       }
 
-      // Smart Selection: Compare Google vs Custom for each type
+      // Build all contact options and save nearest one to DB
       final contactsToSave = <EmergencyContact>[];
+      _allContactOptions.clear();
 
       for (final type in [
         ContactType.police,
         ContactType.hospital,
         ContactType.fireStation,
       ]) {
+        final typeContacts = <EmergencyContact>[];
+
         // Get Google result for this type
         final googleResults = googleContacts
             .where((c) => c.contactType == type)
             .toList();
 
-        // Find nearest (Google or Custom)
-        final nearest = await _customContactService.findNearestContact(
-          type: type,
-          googleResults: googleResults,
-          userLatitude: userLatitude,
-          userLongitude: userLongitude,
-        );
+        if (googleResults.isNotEmpty) {
+          typeContacts.addAll(googleResults);
+        }
 
-        if (nearest != null) {
-          contactsToSave.add(nearest);
+        // Get custom contacts for this type
+        final customContacts = await _customContactService
+            .getCustomContactsByType(type);
+
+        if (customContacts.isNotEmpty) {
+          typeContacts.addAll(customContacts);
+        }
+
+        // Sort by distance from user
+        if (typeContacts.isNotEmpty) {
+          typeContacts.sort((a, b) {
+            final distA = _placesService.calculateDistance(
+              userLatitude,
+              userLongitude,
+              a.latitude ?? 0,
+              a.longitude ?? 0,
+            );
+            final distB = _placesService.calculateDistance(
+              userLatitude,
+              userLongitude,
+              b.latitude ?? 0,
+              b.longitude ?? 0,
+            );
+            return distA.compareTo(distB);
+          });
+
+          // Store ALL options for this type (for UI display)
+          _allContactOptions[type] = typeContacts;
+
+          // Save only the NEAREST one to database (for phone sync)
+          contactsToSave.add(typeContacts.first);
+
           print(
-            '✓ Selected ${type.displayName}: ${nearest.name} '
-            '(${nearest.sourceBadge})',
+            '✓ Found ${typeContacts.length} ${type.displayName} option(s): '
+            '${typeContacts.map((c) => '${c.name} (${c.sourceBadge})').join(', ')}',
           );
         }
       }
 
-      // Save to database (will insert or update based on user_id + contact_type)
+      // Save nearest contacts to database (will insert or update based on user_id + contact_type)
       for (final contact in contactsToSave) {
         await _supabaseService.upsertEmergencyContact(contact.toInsertJson());
       }
@@ -271,16 +361,93 @@ class EmergencyProvider extends ChangeNotifier {
   // ==================== Load from Database ====================
 
   /// Load saved emergency contacts from Supabase
+  /// Also populates allContactOptions with both Google and Custom contacts
+  /// Sorts contacts by distance from current location
   Future<void> loadSavedContacts(String userId) async {
     try {
       // Get all active contacts (both AI-generated and custom)
       final contactsData = await _supabaseService.getAllEmergencyContacts();
 
       _savedContacts.clear();
+      _allContactOptions.clear();
+
+      // Get current location for distance sorting
+      final position = await _locationService.getCurrentPosition();
+      final userLat = position?.latitude;
+      final userLon = position?.longitude;
+
+      // Group contacts by type
+      final contactsByType = <ContactType, List<EmergencyContact>>{};
+
       for (final data in contactsData) {
         final contact = EmergencyContact.fromJson(data);
-        // Only keep the latest contact for each type
+
+        // Debug: Log loaded phone numbers
+        print(
+          '📱 Loaded ${contact.contactType.displayName}: phone="${contact.phoneNumber}"',
+        );
+
+        // Add to savedContacts (only keeps one per type - the one in DB)
         _savedContacts[contact.contactType] = contact;
+
+        // Add to grouped list
+        contactsByType.putIfAbsent(contact.contactType, () => []);
+        contactsByType[contact.contactType]!.add(contact);
+      }
+
+      // Populate allContactOptions with both Google (AI-generated) and Custom
+      for (final type in ContactType.values) {
+        if (type == ContactType.custom) continue;
+
+        final typeContacts = <EmergencyContact>[];
+
+        // Get all contacts for this type from database
+        final dbContacts = contactsByType[type] ?? [];
+        typeContacts.addAll(dbContacts);
+
+        // Get custom contacts for this type
+        final customContacts = await _customContactService
+            .getCustomContactsByType(type);
+
+        // Add custom contacts that aren't already in the list
+        for (final custom in customContacts) {
+          final exists = typeContacts.any(
+            (c) =>
+                c.id == custom.id ||
+                (c.phoneNumber == custom.phoneNumber && c.name == custom.name),
+          );
+          if (!exists) {
+            typeContacts.add(custom);
+          }
+        }
+
+        // Sort by distance from user's current location
+        if (typeContacts.isNotEmpty && userLat != null && userLon != null) {
+          typeContacts.sort((a, b) {
+            final distA = _placesService.calculateDistance(
+              userLat,
+              userLon,
+              a.latitude ?? 0,
+              a.longitude ?? 0,
+            );
+            final distB = _placesService.calculateDistance(
+              userLat,
+              userLon,
+              b.latitude ?? 0,
+              b.longitude ?? 0,
+            );
+            return distA.compareTo(distB);
+          });
+
+          print(
+            '✓ Sorted ${type.displayName} contacts by distance: '
+            '${typeContacts.map((c) => '${c.name} (${c.sourceBadge})').join(', ')}',
+          );
+        }
+
+        if (typeContacts.isNotEmpty) {
+          _allContactOptions[type] = typeContacts;
+        }
       }
 
       notifyListeners();
