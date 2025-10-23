@@ -14,10 +14,12 @@ This app solves the problem of outdated emergency contacts by automatically find
 - 🔐 **Secure Authentication**: Google OAuth, Facebook OAuth, or Anonymous sign-in
 - ⚡ **Background Service**: Works autonomously with configurable intervals (15min-24hrs)
 - 🗺️ **Google Places API**: Finds verified emergency services with phone numbers
-- � **Custom Contacts**: Add your own emergency contacts with 3 input methods (GPS, Map Picker, Text Address)
-- 🎯 **Smart Selection**: Compares Google Places vs Custom contacts, selects nearest one
-- �📊 **Update History**: Track all contact changes
-- ⚙️ **Customizable Settings**: Control update frequency, search radius, and auto-update behavior
+- 🆘 **Fallback Number**: Universal emergency number (911, 999, etc.) when no contacts found
+- 📱 **Custom Contacts**: Add your own emergency contacts with 3 input methods (GPS, Map Picker, Text Address)
+- 🎯 **Smart Selection**: Compares Google Places vs Custom contacts, displays all options sorted by distance
+- 🏆 **Multi-Option Display**: Shows nearest contact prominently + alternatives in expandable section
+- � **Update History**: Track all contact changes
+- ⚙️ **Customizable Settings**: Control update frequency, search radius, fallback number, and auto-update behavior
 
 ## 🏗️ Architecture
 
@@ -65,12 +67,22 @@ This app solves the problem of outdated emergency contacts by automatically find
    - 🗺️ **Map Picker**: Drag a marker on Google Maps to select location
    - ⌨️ **Text Address**: Type address, app converts to coordinates
 3. **Save to Database**: Contact saved with `is_custom` flag
-4. **Smart Selection**: When refreshing contacts, app:
+4. **Smart Selection & Display**: When refreshing contacts, app:
    - Fetches Google Places results
    - Fetches your custom contacts
    - Calculates distance from your location to each option
-   - Selects and saves the nearest one (Google or Custom)
-5. **Visual Indicator**: Custom contacts show blue "Custom" badge on dashboard
+   - **Shows ALL options** sorted by distance on dashboard
+   - **Nearest contact** displayed prominently with "⭐ NEAREST [TYPE]" header
+   - **Alternative contacts** shown in expandable section with ranking badges (2nd, 3rd)
+   - Saves only the nearest one to database for phone sync
+5. **Fallback Number Safety**: If no contacts found:
+   - Displays fallback emergency number (911, 999, etc.)
+   - Configurable in Settings
+   - One-tap calling from dashboard
+6. **Visual Indicators**: 
+   - Custom contacts show purple "Custom" badge
+   - Google contacts show blue "Google" badge
+   - Green call buttons for valid numbers
 
 ## 🗄️ Database Schema
 
@@ -126,6 +138,7 @@ user_settings (
   auto_update_enabled BOOLEAN DEFAULT true,
   update_interval_minutes INTEGER DEFAULT 60,
   search_radius_km DOUBLE PRECISION DEFAULT 10.0,
+  fallback_number TEXT DEFAULT '911', -- NEW: Universal emergency number
   created_at TIMESTAMP,
   updated_at TIMESTAMP
 )
@@ -229,12 +242,16 @@ class GoogleConfig {
 - [x] Settings screen
 - [x] Dashboard UI
 - [x] Error handling and logging
+- [x] **Fallback emergency number** (Configurable universal number like 911, 999, 112)
 - [x] **Custom emergency contacts** (Manual entry with 3 input methods)
 - [x] **Smart selection algorithm** (Google vs Custom distance comparison)
+- [x] **Multi-option display** (Shows all contacts sorted by distance)
+- [x] **Enhanced dashboard UI** (Nearest contact prominent, alternatives expandable)
 - [x] **Interactive map picker** (Google Maps marker for location selection)
 - [x] **Geocoding integration** (Address ↔ Coordinates conversion)
 - [x] **Distance-based sorting** (Contacts sorted by proximity)
-- [x] **Visual indicators** (Blue "Custom" badge on user-added contacts)
+- [x] **Visual indicators** (Purple "Custom" badge, Blue "Google" badge, ranking badges)
+- [x] **Phone number validation** (Auto-clean formatting, green/gray call buttons)
 
 ### 🎯 Future Enhancements
 
@@ -369,7 +386,29 @@ For issues, questions, or feature requests:
 
 ## 🔄 Version History
 
-### v2.1.0 (Current - October 2025)
+### v2.2.0 (Current - October 2025)
+- 🆘 **Fallback Emergency Number**: Configurable universal number (911, 999, 112, etc.)
+  - Settings screen input for custom fallback number
+  - Auto-fills when Google Places has no phone number
+  - Displays prominently when no contacts found
+  - One-tap calling from dashboard
+- 🏆 **Multi-Option Contact Display**: Enhanced dashboard UI
+  - Shows ALL Google + Custom contacts per category
+  - Nearest contact displayed prominently with "⭐ NEAREST [TYPE]" header
+  - Alternatives in expandable section with ranking badges (2nd, 3rd)
+  - Distance-based sorting on every load
+- 🎨 **Enhanced UI/UX**:
+  - Purple "Custom" badge and Blue "Google" badge for source identification
+  - Green call buttons for valid numbers, gray for invalid
+  - Contact details dialog with call functionality
+  - Fixed layout overflow issues
+- 📞 **Phone Number Improvements**:
+  - Auto-clean formatting (removes spaces, dashes, parentheses)
+  - Simple validation (not empty or placeholder)
+  - Fixed missing call functionality in single contact cards
+- 🐛 **Bug Fixes**: Layout overflow, phone validation edge cases
+
+### v2.1.0 (October 2025)
 - ✨ **Custom Emergency Contacts**: Add your own contacts manually
 - 🗺️ **3 Input Methods**: Current GPS, Interactive Map Picker, Text Address
 - 🎯 **Smart Selection**: Compares Google vs Custom, selects nearest
